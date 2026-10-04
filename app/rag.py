@@ -1,0 +1,173 @@
+"""
+DocMind RAG - CKP02 (FIAP) - Domínio: GoodWe / mobilidade elétrica.
+
+Pipeline: load -> split -> embed -> store -> retrieve -> generate
+A função buscar(consulta, vs) será reutilizada como @tool no CKP03.
+"""
+import json
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+from langchain_chroma import Chroma
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
+from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+load_dotenv()
+
+# ---------------------------------------------------------------- caminhos
+BASE_DIR = Path(__file__).resolve().parent.parent
+DOCS_DIR = BASE_DIR / "data" / "docs"
+MANIFESTO = BASE_DIR / "data" / "manifesto.json"
+CHROMA_DIR = BASE_DIR / "chroma_db"
+EXTENSOES = {".pdf", ".txt", ".md"}
+
+# ---------------------------------------------------------------- modelos
+_API_KEY = os.getenv("OLLAMA_API_KEY")
+if not _API_KEY:
+    raise RuntimeError("OLLAMA_API_KEY não foi encontrada no arquivo .env")
+
+# Para usar o embedding em um Ollama local (plano B), defina no .env:
+# EMBED_BASE_URL=http://localhost:11434
+_CHAT_URL = "https://ollama.com"
+_EMBED_URL = os.getenv("EMBED_BASE_URL", "https://ollama.com")
+
+
+def _auth(url):
+    """Só envia a chave quando o destino é o Ollama Cloud."""
+    if "ollama.com" in url:
+        return {"headers": {"Authorization": f"Bearer {_API_KEY}"}}
+    return {}
+
+
+# Único modelo de embedding aprovado
+embeddings = OllamaEmbeddings(
+    model="nomic-embed-text", base_url=_EMBED_URL, client_kwargs=_auth(_EMBED_URL)
+)
+
+# Único modelo de chat aprovado, temperature=0 para respostas fundamentadas
+llm = ChatOllama(
+    model="gemma4:cloud", base_url=_CHAT_URL, temperature=0,
+    client_kwargs=_auth(_CHAT_URL),
+)
+
+
+# ---------------------------------------------------------------- 1. load
+def carregar_documentos(pasta=DOCS_DIR, manifesto=MANIFESTO):
+    """Carrega PDF/TXT/MD e anexa a metadata do manifesto.json a cada página."""
+    meta_arquivos = json.loads(Path(manifesto).read_text(encoding="utf-8"))
+    docs = []
+    for arq in sorted(Path(pasta).iterdir()):
+        if arq.suffix.lower() not in EXTENSOES:
+            continue
+        if arq.name not in meta_arquivos:
+            print(f"[aviso] {arq.name} não está no manifesto.json (ficará sem metadata)")
+        if arq.suffix.lower() == ".pdf":
+            paginas = PyPDFLoader(str(arq)).load()
+        else:
+            paginas = TextLoader(str(arq), encoding="utf-8").load()
+        for p in paginas:
+            if not p.page_content.strip():
+                continue
+            meta = {"arquivo": arq.name, **meta_arquivos.get(arq.name, {})}
+            if "page" in p.metadata:  # PDFs: página começa em 0, então somamos 1
+                meta["pagina"] = int(p.metadata["page"]) + 1
+            p.metadata = meta
+            docs.append(p)
+    return docs
+
+
+# ---------------------------------------------------------------- 2. split
+def dividir(docs, chunk_size):
+    """Divide em chunks. O overlap é 12,5% do chunk_size (faixa exigida: 10-15%)."""
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=int(chunk_size * 0.125),
+        separators=["\n\n", "\n", ". ", " ", ""],
+    )
+    return splitter.split_documents(docs)
+
+
+# ---------------------------------------------------------------- 3/4. embed + store
+def abrir_colecao(nome):
+    """Abre uma coleção ChromaDB já persistida (sem recalcular embeddings)."""
+    return Chroma(
+        collection_name=nome,
+        embedding_function=embeddings,
+        persist_directory=str(CHROMA_DIR / nome),
+    )
+
+
+def criar_colecao(chunks, nome):
+    """Recria a coleção do zero (evita chunks duplicados ao rodar de novo)."""
+    try:
+        abrir_colecao(nome).delete_collection()
+    except Exception:
+        pass
+    vs = abrir_colecao(nome)
+    for i in range(0, len(chunks), 64):  # lotes pequenos para não estourar a API
+        vs.add_documents(chunks[i:i + 64])
+    return vs
+
+
+# ---------------------------------------------------------------- 5. retrieve
+_reranker = None
+
+
+def _obter_reranker():
+    global _reranker
+    if _reranker is None:
+        from sentence_transformers import CrossEncoder
+        _reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+    return _reranker
+
+
+def buscar(consulta, vs, k=4, filtro=None, rerank=False):
+    """
+    Busca semântica na base. Esta é a função que vira @tool no CKP03.
+
+    filtro: dict de metadata, ex.: {"tipo": "norma"}
+    rerank: se True, busca 10 candidatos e reordena com cross-encoder.
+    """
+    candidatos = vs.similarity_search(consulta, k=10 if rerank else k, filter=filtro)
+    if rerank and candidatos:
+        notas = _obter_reranker().predict([(consulta, d.page_content) for d in candidatos])
+        ordenados = sorted(zip(notas, candidatos), key=lambda x: -x[0])
+        candidatos = [d for _, d in ordenados][:k]
+    return candidatos
+
+
+# ---------------------------------------------------------------- 6. generate
+def rotulo_fonte(d):
+    """Texto de citação, ex.: 'goodwe_hca_manual.pdf, p.12'."""
+    arquivo = d.metadata.get("arquivo", "?")
+    pagina = d.metadata.get("pagina")
+    return f"{arquivo}, p.{pagina}" if pagina else arquivo
+
+
+def gerar(pergunta, docs):
+    """Gera a resposta da Norah usando APENAS os chunks recuperados e citando a fonte."""
+    contexto = "\n\n".join(f"[Fonte: {rotulo_fonte(d)}]\n{d.page_content}" for d in docs)
+    sistema = (
+        "Você é a Norah, assistente virtual da GoodWe especializada em mobilidade "
+        "elétrica e carregadores de veículos elétricos.\n"
+        "Responda sempre em português do Brasil, de forma clara e objetiva.\n"
+        "Use APENAS as informações do contexto fornecido. Não invente valores, "
+        "modelos ou funcionalidades.\n"
+        "Cite a fonte de cada informação no formato [arquivo, p.X].\n"
+        "Se o contexto não tiver a resposta, diga que não há dados suficientes "
+        "nos documentos para responder com segurança."
+    )
+    humano = f"<contexto>\n{contexto}\n</contexto>\n\nPergunta: {pergunta}"
+    return llm.invoke([("system", sistema), ("human", humano)]).content
+
+
+def responder(pergunta, vs, k=4, filtro=None, rerank=False):
+    """Atalho: busca + geração. Devolve resposta, fontes e textos dos chunks."""
+    docs = buscar(pergunta, vs, k=k, filtro=filtro, rerank=rerank)
+    return {
+        "resposta": gerar(pergunta, docs),
+        "fontes": [rotulo_fonte(d) for d in docs],
+        "contextos": [d.page_content for d in docs],
+    }

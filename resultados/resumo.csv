@@ -1,0 +1,5 @@
+variante,chunk_size,rerank,n_chunks,faithfulness_medio,answer_relevancy_medio,perguntas_com_NaN
+chunk256,256,False,633,0.8125,0.5820453259725294,0
+chunk512,512,False,348,1.0,0.563855727270272,0
+chunk1024,1024,False,223,0.84375,0.5885707406887829,0
+chunk512_rerank,512,True,348,0.96875,0.559658387635461,0

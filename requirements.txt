@@ -1,0 +1,13 @@
+langchain-core
+langchain-ollama
+langchain-community
+langchain-text-splitters
+langchain-chroma
+chromadb
+pypdf
+ragas>=0.2,<0.4
+datasets
+sentence-transformers
+gradio
+python-dotenv
+pandas

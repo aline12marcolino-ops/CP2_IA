@@ -1,0 +1,23 @@
+{
+  "goodwe_hca_g2_datasheet.pdf": {
+  "tipo": "datasheet", "categoria": "produto", "ano": 2024,
+  "fonte": "https://admin.goodwe.com/Ftp/Downloads/Datasheet/PT/GW_HCA-G2_Datasheet-PT.pdf"
+  },
+  "goodwe_hca_g2_manual.pdf": {
+  "tipo": "manual", "categoria": "produto", "ano": 2024,
+  "fonte": "https://admin.goodwe.com/Ftp/Downloads/User%20Manual/GW_HCA-G2_User-Manual-PT.pdf"
+  },
+  "goodwe_sems_plus_app.pdf": {
+    "tipo": "manual", "categoria": "aplicativo", "ano": 2024,
+    "fonte": "https://latam.goodwe.com/Ftp/EN/Downloads/User%20Manual/GW_SEMS-PLUS_User-Manual-EN.pdf"
+  },
+  "goodwe_compatibilidade.pdf": {
+  "tipo": "datasheet", "categoria": "produto", "ano": 2025,
+  "fonte": "https://en.goodwe.com/Ftp/EN/Downloads/User%20Manual/GW_Compatibility-list-of-GoodWe-EV-Chargers-and-Inverters-EN.pdf"
+  },
+  "energisa_ndu042.pdf": {
+    "tipo": "norma", "categoria": "distribuidora", "ano": 2025,
+    "fonte": "https://www.energisa.com.br/sites/energisa/files/media/documents/2025-02/NDU%20042%20-%20Fornecimento%20de%20energia%20para%20esta%C3%A7%C3%B5es%20de%20recarga%20de%20ve%C3%ADculo%20el%C3%A9trico.pdf"
+  }
+ 
+}
