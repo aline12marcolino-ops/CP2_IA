@@ -8,8 +8,8 @@ Disciplina: Prompt Engineering and Artificial Intelligence · FIAP · 2º semest
 
 | Nome | RM |
 |------|----|
-| [Aline Medri Marcolino] | [RM:569349] |
-| [Luis Fernando de Azevedo] | [RM:574167] |
+| Aline Medri Marcolino | RM:569349 |
+| Luis Fernando de Azevedo | RM:574167 |
 
 
 ## O que o projeto faz
@@ -29,15 +29,13 @@ Pipeline completo: `load → split → embed → store → retrieve → generate
 
 Documentos reais em `data/docs/`, com as fontes abaixo.
 
-| Arquivo | Documento | Emissor | Versão / data | Link de origem |
-|---------|-----------|---------|---------------|----------------|
-| `goodwe_hca_g2_datasheet.pdf` | Linha HCA G2: carregador CA monofásico 7 kW e trifásico 11/22 kW (ficha técnica) | GoodWe | `GoodWe-Single page-20241121-PT-V2.1` (21/11/2024) | [colar link] |
-| `goodwe_hca_g2_manual.pdf` | Manual do usuário da linha HCA G2 | GoodWe | [versão/data] | [colar link] |
-| `goodwe_sems_plus_app.pdf` | Guia do aplicativo SEMS+ | GoodWe | [versão/data] | [colar link] |
-| `goodwe_compatibilidade.pdf` | Lista de compatibilidade entre carregadores GoodWe e inversores | GoodWe | Versão 1, 15/08/2026 | [colar link] |
-| `energisa_ndu042.pdf` | NDU-042: Fornecimento de energia para estações de recarga de veículo elétrico (ENERGISA/GTD-NRM/Nº023/2021) | Grupo Energisa | Versão 1.0, junho/2022 | [colar link] |
-
-Os documentos GoodWe cobrem o equipamento. A NDU-042 cobre a regulação (baseada na Resolução Normativa ANEEL nº 1.000/2021), então a base responde tanto perguntas técnicas quanto perguntas de conexão à rede.
+| Arquivo | Documento | Emissor |   data /versão   |  Link de origem |
+|---------|-----------|---------|------------------|-----------------|
+| `goodwe_hca_g2_datasheet.pdf` | Linha HCA G2: carregador CA monofásico 7 kW e trifásico 11/22 kW (ficha técnica) | GoodWe | `V2.1` (2024) | [https://admin.goodwe.com/Ftp/Downloads/Datasheet/PT/GW_HCA-G2_Datasheet-PT.pdf] |
+| `goodwe_hca_g2_manual.pdf` | Manual do usuário da linha HCA G2 | GoodWe | `V1.6`(2026) | [https://admin.goodwe.com/Ftp/Downloads/User%20Manual/GW_HCA-G2_User-Manual-PT.pdf] |
+| `goodwe_sems_plus_app.pdf` | Guia do aplicativo SEMS+ | GoodWe | `V1.1`(2026) | [https://latam.goodwe.com/Ftp/EN/Downloads/User%20Manual/GW_SEMS-PLUS_User-Manual-EN.pdf] |
+| `goodwe_compatibilidade.pdf` | Lista de compatibilidade entre carregadores GoodWe e inversores | GoodWe | Versão 1 2026 | [https://en.goodwe.com/Ftp/EN/Downloads/User%20Manual/GW_Compatibility-list-of-GoodWe-EV-Chargers-and-Inverters-EN.pdf] |
+| `energisa_ndu042.pdf` | NDU-042: Fornecimento de energia para estações de recarga de veículo elétrico (ENERGISA/GTD-NRM/Nº023/2021) | Grupo Energisa | Versão 1.0 (2026)| [https://www.energisa.com.br/sites/energisa/files/media/documents/2025-02/NDU%20042%20-%20Fornecimento%20de%20energia%20para%20esta%C3%A7%C3%B5es%20de%20recarga%20de%20ve%C3%ADculo%20el%C3%A9trico.pdf] |
 
 ## Estrutura do repositório
 
