@@ -105,7 +105,7 @@ Tabelas completas em `resultados/ragas_<variante>.csv` e resumo em `resultados/r
    ```
    py -3.12 -m venv .venv
    .venv\Scripts\activate
-   python -m pip install -r requirements.txt
+    
    ```
 3. Copie `.env.example` para `.env` e preencha:
    ```

@@ -52,6 +52,25 @@ llm = ChatOllama(
     client_kwargs=_auth(_CHAT_URL),
 )
 
+# ---------------------------------------------------------------- prompts
+SISTEMA = (
+    "Você é a Norah, assistente virtual da GoodWe especializada em mobilidade "
+    "elétrica e carregadores de veículos elétricos.\n"
+    "Responda sempre em português do Brasil, de forma clara e objetiva.\n"
+    "Use APENAS as informações do contexto fornecido. Não invente valores, "
+    "modelos ou funcionalidades.\n"
+    "Cite a fonte de cada informação no formato [arquivo, p.X].\n"
+    "Se o contexto não tiver a resposta, diga que não há dados suficientes "
+    "nos documentos para responder com segurança.\n"
+    "Use a conversa anterior (quando houver) apenas para entender a pergunta atual.\n"
+    "Se a pergunta for ambígua (por exemplo, não diz o modelo), pergunte qual modelo "
+    "o usuário tem ou apresente a resposta para cada modelo encontrado no contexto.\n"
+    "Em perguntas técnicas, apresente os valores com unidade e modelo, em lista curta.\n"
+    "Se o usuário apenas cumprimentar ou agradecer, responda de forma breve e natural, "
+    "sem citar fontes.\n"
+    "Não copie os documentos literalmente; explique de forma simples."
+)
+
 
 # ---------------------------------------------------------------- 1. load
 def carregar_documentos(pasta=DOCS_DIR, manifesto=MANIFESTO):
@@ -128,14 +147,17 @@ def buscar(consulta, vs, k=4, filtro=None, rerank=False):
     Busca semântica na base. Esta é a função que vira @tool no CKP03.
 
     filtro: dict de metadata, ex.: {"tipo": "norma"}
-    rerank: se True, busca 10 candidatos e reordena com cross-encoder.
+    rerank: se True, busca 15 candidatos e reordena com cross-encoder.
+            Se False, usa MMR (relevância + diversidade) para evitar chunks repetidos.
     """
-    candidatos = vs.similarity_search(consulta, k=10 if rerank else k, filter=filtro)
-    if rerank and candidatos:
-        notas = _obter_reranker().predict([(consulta, d.page_content) for d in candidatos])
-        ordenados = sorted(zip(notas, candidatos), key=lambda x: -x[0])
-        candidatos = [d for _, d in ordenados][:k]
-    return candidatos
+    if rerank:
+        candidatos = vs.similarity_search(consulta, k=15, filter=filtro)
+        if candidatos:
+            notas = _obter_reranker().predict([(consulta, d.page_content) for d in candidatos])
+            ordenados = sorted(zip(notas, candidatos), key=lambda x: -x[0])
+            candidatos = [d for _, d in ordenados][:k]
+        return candidatos
+    return vs.max_marginal_relevance_search(consulta, k=k, fetch_k=15, filter=filtro)
 
 
 # ---------------------------------------------------------------- 6. generate
@@ -146,28 +168,58 @@ def rotulo_fonte(d):
     return f"{arquivo}, p.{pagina}" if pagina else arquivo
 
 
-def gerar(pergunta, docs):
+def _formatar_conversa(historico, limite=6):
+    """Converte [(papel, texto), ...] em texto simples com as últimas mensagens."""
+    return "\n".join(
+        f"{'Usuário' if papel == 'user' else 'Norah'}: {texto}"
+        for papel, texto in historico[-limite:]
+    )
+
+
+def reescrever(pergunta, historico):
+    """
+    Transforma uma pergunta de acompanhamento (ex.: 'e a potência dele?')
+    em uma consulta independente, usando a conversa anterior.
+    Só roda quando há histórico e a pergunta é curta (economiza uma chamada ao LLM).
+    """
+    if not historico or len(pergunta.split()) >= 12:
+        return pergunta
+    prompt = (
+        "Dada a conversa abaixo, reescreva a ÚLTIMA pergunta do usuário como uma "
+        "pergunta completa e independente, em português, citando o produto/modelo "
+        "mencionado antes se necessário. Responda apenas com a pergunta reescrita.\n\n"
+        f"{_formatar_conversa(historico)}\n\nÚltima pergunta: {pergunta}"
+    )
+    try:
+        reescrita = llm.invoke([("human", prompt)]).content.strip()
+        return reescrita or pergunta
+    except Exception as erro:
+        print("Falha ao reescrever a pergunta:", repr(erro))
+        return pergunta
+
+
+def gerar(pergunta, docs, historico=None):
     """Gera a resposta da Norah usando APENAS os chunks recuperados e citando a fonte."""
     contexto = "\n\n".join(f"[Fonte: {rotulo_fonte(d)}]\n{d.page_content}" for d in docs)
-    sistema = (
-        "Você é a Norah, assistente virtual da GoodWe especializada em mobilidade "
-        "elétrica e carregadores de veículos elétricos.\n"
-        "Responda sempre em português do Brasil, de forma clara e objetiva.\n"
-        "Use APENAS as informações do contexto fornecido. Não invente valores, "
-        "modelos ou funcionalidades.\n"
-        "Cite a fonte de cada informação no formato [arquivo, p.X].\n"
-        "Se o contexto não tiver a resposta, diga que não há dados suficientes "
-        "nos documentos para responder com segurança."
-    )
-    humano = f"<contexto>\n{contexto}\n</contexto>\n\nPergunta: {pergunta}"
-    return llm.invoke([("system", sistema), ("human", humano)]).content
+    conversa = ""
+    if historico:
+        conversa = f"<conversa>\n{_formatar_conversa(historico)}\n</conversa>\n\n"
+    humano = f"{conversa}<contexto>\n{contexto}\n</contexto>\n\nPergunta: {pergunta}"
+    return llm.invoke([("system", SISTEMA), ("human", humano)]).content
 
 
-def responder(pergunta, vs, k=4, filtro=None, rerank=False):
-    """Atalho: busca + geração. Devolve resposta, fontes e textos dos chunks."""
-    docs = buscar(pergunta, vs, k=k, filtro=filtro, rerank=rerank)
+def responder(pergunta, vs, k=4, filtro=None, rerank=False, historico=None):
+    """
+    Atalho: reescrita + busca + geração.
+    historico: lista [(papel, texto_puro), ...] das mensagens anteriores.
+    Devolve resposta, fontes, textos dos chunks e a consulta usada na busca.
+    """
+    historico = historico or []
+    consulta = reescrever(pergunta, historico)
+    docs = buscar(consulta, vs, k=k, filtro=filtro, rerank=rerank)
     return {
-        "resposta": gerar(pergunta, docs),
+        "resposta": gerar(pergunta, docs, historico),
         "fontes": [rotulo_fonte(d) for d in docs],
         "contextos": [d.page_content for d in docs],
+        "consulta": consulta,
     }
