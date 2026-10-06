@@ -2,7 +2,7 @@ from app.rag import abrir_colecao, carregar_documentos, criar_colecao, dividir, 
 
 NOME = "goodwe_ev_512"
 vs = abrir_colecao(NOME)
-if vs._collection.count() == 0:  # primeira execução: cria a base
+if vs._collection.count() == 0: 
     vs = criar_colecao(dividir(carregar_documentos(), 512), NOME)
 
 while True:

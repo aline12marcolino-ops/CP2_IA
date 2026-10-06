@@ -1,13 +1,6 @@
-"""
-DocMind RAG - CKP02 (FIAP) - Domínio: GoodWe / mobilidade elétrica.
-
-Pipeline: load -> split -> embed -> store -> retrieve -> generate
-A função buscar(consulta, vs) será reutilizada como @tool no CKP03.
-"""
 import json
 import os
 from pathlib import Path
-
 from dotenv import load_dotenv
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
@@ -16,20 +9,15 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 load_dotenv()
 
-# ---------------------------------------------------------------- caminhos
 BASE_DIR = Path(__file__).resolve().parent.parent
 DOCS_DIR = BASE_DIR / "data" / "docs"
 MANIFESTO = BASE_DIR / "data" / "manifesto.json"
 CHROMA_DIR = BASE_DIR / "chroma_db"
 EXTENSOES = {".pdf", ".txt", ".md"}
 
-# ---------------------------------------------------------------- modelos
 _API_KEY = os.getenv("OLLAMA_API_KEY")
 if not _API_KEY:
     raise RuntimeError("OLLAMA_API_KEY não foi encontrada no arquivo .env")
-
-# Para usar o embedding em um Ollama local (plano B), defina no .env:
-# EMBED_BASE_URL=http://localhost:11434
 _CHAT_URL = "https://ollama.com"
 _EMBED_URL = os.getenv("EMBED_BASE_URL", "https://ollama.com")
 
@@ -40,19 +28,15 @@ def _auth(url):
         return {"headers": {"Authorization": f"Bearer {_API_KEY}"}}
     return {}
 
-
-# Único modelo de embedding aprovado
 embeddings = OllamaEmbeddings(
     model="nomic-embed-text", base_url=_EMBED_URL, client_kwargs=_auth(_EMBED_URL)
 )
 
-# Único modelo de chat aprovado, temperature=0 para respostas fundamentadas
 llm = ChatOllama(
     model="gemma4:cloud", base_url=_CHAT_URL, temperature=0,
     client_kwargs=_auth(_CHAT_URL),
 )
 
-# ---------------------------------------------------------------- prompts
 SISTEMA = (
     "Você é a Norah, assistente virtual da GoodWe especializada em mobilidade "
     "elétrica e carregadores de veículos elétricos.\n"
@@ -71,8 +55,6 @@ SISTEMA = (
     "Não copie os documentos literalmente; explique de forma simples."
 )
 
-
-# ---------------------------------------------------------------- 1. load
 def carregar_documentos(pasta=DOCS_DIR, manifesto=MANIFESTO):
     """Carrega PDF/TXT/MD e anexa a metadata do manifesto.json a cada página."""
     meta_arquivos = json.loads(Path(manifesto).read_text(encoding="utf-8"))
@@ -96,8 +78,6 @@ def carregar_documentos(pasta=DOCS_DIR, manifesto=MANIFESTO):
             docs.append(p)
     return docs
 
-
-# ---------------------------------------------------------------- 2. split
 def dividir(docs, chunk_size):
     """Divide em chunks. O overlap é 12,5% do chunk_size (faixa exigida: 10-15%)."""
     splitter = RecursiveCharacterTextSplitter(
@@ -108,7 +88,6 @@ def dividir(docs, chunk_size):
     return splitter.split_documents(docs)
 
 
-# ---------------------------------------------------------------- 3/4. embed + store
 def abrir_colecao(nome):
     """Abre uma coleção ChromaDB já persistida (sem recalcular embeddings)."""
     return Chroma(
@@ -116,7 +95,6 @@ def abrir_colecao(nome):
         embedding_function=embeddings,
         persist_directory=str(CHROMA_DIR / nome),
     )
-
 
 def criar_colecao(chunks, nome):
     """Recria a coleção do zero (evita chunks duplicados ao rodar de novo)."""
@@ -129,10 +107,7 @@ def criar_colecao(chunks, nome):
         vs.add_documents(chunks[i:i + 64])
     return vs
 
-
-# ---------------------------------------------------------------- 5. retrieve
 _reranker = None
-
 
 def _obter_reranker():
     global _reranker
@@ -159,14 +134,11 @@ def buscar(consulta, vs, k=4, filtro=None, rerank=False):
         return candidatos
     return vs.max_marginal_relevance_search(consulta, k=k, fetch_k=15, filter=filtro)
 
-
-# ---------------------------------------------------------------- 6. generate
 def rotulo_fonte(d):
     """Texto de citação, ex.: 'goodwe_hca_manual.pdf, p.12'."""
     arquivo = d.metadata.get("arquivo", "?")
     pagina = d.metadata.get("pagina")
     return f"{arquivo}, p.{pagina}" if pagina else arquivo
-
 
 def _formatar_conversa(historico, limite=6):
     """Converte [(papel, texto), ...] em texto simples com as últimas mensagens."""
@@ -174,7 +146,6 @@ def _formatar_conversa(historico, limite=6):
         f"{'Usuário' if papel == 'user' else 'Norah'}: {texto}"
         for papel, texto in historico[-limite:]
     )
-
 
 def reescrever(pergunta, historico):
     """

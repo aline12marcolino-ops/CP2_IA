@@ -17,7 +17,6 @@ VARIANTES = [
     ("chunk512_rerank", 512, True),  
 ]
 
-
 def main():
     Path("resultados").mkdir(exist_ok=True)
     docs = carregar_documentos()

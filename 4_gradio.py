@@ -1,9 +1,7 @@
 import html
 import re
 from datetime import datetime
-
 import gradio as gr
-
 from app.rag import abrir_colecao, carregar_documentos, criar_colecao, dividir, responder
 
 
@@ -91,7 +89,6 @@ footer {{ display: none !important; }}
 .aviso {{ text-align: center; font-size: 8.5px; color: #98a2a8; padding: 4px 16px 14px; }}
 """
 
-
 def _formatar(texto):
     """Escapa o texto e converte **negrito**, listas e quebras de linha em HTML."""
     seguro = html.escape(texto)
@@ -99,15 +96,12 @@ def _formatar(texto):
     seguro = re.sub(r"^[-*] ", "• ", seguro, flags=re.M)
     return seguro.replace("\n", "<br>")
 
-
 def _hora():
     return datetime.now().strftime("%H:%M")
-
 
 def _limpar(texto_html):
     """Remove as tags HTML para enviar o histórico como texto puro ao RAG."""
     return re.sub(r"<[^>]+>", " ", texto_html).strip()
-
 
 def _render(historico, digitando=False):
     """Monta o HTML do chat a partir do histórico [(papel, html, hora, fontes), ...]."""
@@ -136,7 +130,6 @@ def conversar(mensagem, historico, tipo, rerank, consulta=None):
         yield _render(historico), historico, ""
         return
 
-    # conversa anterior em texto puro (pula a saudação inicial), capturada ANTES da pergunta atual
     anteriores = [(p, _limpar(t)) for p, t, _, _ in historico[1:]]
 
     historico = historico + [("user", _formatar(texto), _hora(), "")]
@@ -165,8 +158,8 @@ INICIO = [("bot", _formatar(SAUDACAO), "agora", "")]
 with gr.Blocks(title="DocMind · Norah GoodWe") as demo:
     gr.HTML(f"<style>{CSS}</style>")
     estado = gr.State(INICIO)
-    tipo = gr.State("todos")     # sem filtro por tipo de documento
-    rerank = gr.State(True)      # reranking sempre ligado
+    tipo = gr.State("todos")    
+    rerank = gr.State(True)      
 
     with gr.Row(equal_height=False):
         with gr.Column(scale=1, min_width=250, elem_id="lateral"):
